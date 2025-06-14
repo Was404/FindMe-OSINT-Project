@@ -1,9 +1,7 @@
 venv/
 .idea/
 __pycache__
-
 results-vk.txt
 vk_summary.py
 logs/
-
 config.py
