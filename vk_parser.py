@@ -4,8 +4,10 @@ from vk_api import VkApi
 import os
 from datetime import datetime
 import json
+import time
 import unicodedata
-from config import TOKEN_VK
+import re
+from config import TOKEN_VK, KEYWORDS
 
 console = Console()
 
@@ -18,6 +20,10 @@ def contains_cyrillic(text):
         except ValueError:
             continue
     return False
+
+def sanitize_name(name):
+    """Санитизирует имя для использования в качестве имени папки."""
+    return re.sub(r'[^\w\-]', '_', name)
 
 def get_vk_api():
     """Инициализирует VK API с использованием токена."""
@@ -40,97 +46,166 @@ def resolve_screen_name(vk, screen_name):
         console.print(f"[red]Ошибка разрешения screen_name: {e}[/red]")
         return None, None
 
-def get_profile_info(vk, object_id, obj_type):
-    """Получает информацию о профиле в зависимости от типа (user или group)."""
+def get_profile_info(vk, user_id):
+    """Получает информацию о профиле пользователя с указанными полями."""
+    fields = "first_name,last_name,sex,bdate,city,country,home_town,photo_max_orig,domain,education,status,followers_count,occupation,relatives,relation,personal"
     try:
-        if obj_type == 'user':
-            response = vk.users.get(user_ids=object_id, fields='photo_max_orig,first_name,last_name,bdate,city,country,about,activities,interests,education,career,contacts,connections,relation,sex,verified')
-            if response:
-                return response[0]
-        elif obj_type == 'group':
-            response = vk.groups.getById(group_ids=object_id, fields='photo_200,description,members_count,activity,contacts,city,country,verified')
-            if response:
-                return response[0]
-        return None
+        response = vk.users.get(user_ids=user_id, fields=fields)
+        if response:
+            return response[0]
     except Exception as e:
         console.print(f"[red]Ошибка получения информации о профиле: {e}[/red]")
         return None
 
-def download_profile_picture(photo_url, filename):
-    """Скачивает профильную картинку по URL и сохраняет ее в файл."""
+def find_group_for_university(vk, university_name):
+    """Находит сообщество VK, связанное с университетом."""
     try:
-        response = requests.get(photo_url)
-        if response.status_code == 200:
-            with open(filename, 'wb') as f:
-                f.write(response.content)
-            return True
-        else:
-            console.print(f"[yellow]Не удалось скачать фото: {response.status_code}[/yellow]")
-            return False
+        groups = vk.groups.search(q=university_name, type=2, count=10, fields='members_count')
+        if groups['items']:
+            top_group = max(groups['items'], key=lambda x: x.get('members_count', 0))
+            return top_group
     except Exception as e:
-        console.print(f"[red]Ошибка скачивания фото: {e}[/red]")
+        console.print(f"[red]Ошибка поиска группы для университета: {e}[/red]")
+    return None
+
+def get_posts_with_keywords(vk, group_id):
+    """Получает посты из сообщества и фильтрует по ключевым словам."""
+    try:
+        posts = vk.wall.get(owner_id=-group_id, count=100, filter='owner')
+        filtered_posts = [post for post in posts['items'] if any(keyword.lower() in post.get('text', '').lower() for keyword in KEYWORDS)]
+        return filtered_posts
+    except Exception as e:
+        console.print(f"[red]Ошибка получения постов из группы: {e}[/red]")
+        return []
+
+def get_liked_posts(vk, user_id):
+    """Получает список постов, которые пользователь лайкнул."""
+    try:
+        liked_posts = vk.likes.getList(type='post', count=1000)
+        return liked_posts['items']
+    except Exception as e:
+        console.print(f"[red]Ошибка получения лайкнутых постов: {e}[/red]")
+        return []
+
+def get_user_data(vk, user_id):
+    """Собирает всю необходимую информацию о пользователе, включая его посты."""
+    profile = get_profile_info(vk, user_id)
+    if not profile:
+        return None
+
+    universities = profile.get('education', []) if isinstance(profile.get('education'), list) else []
+    universities_data = []
+    for uni in universities:
+        uni_name = uni.get('name', '')
+        group = find_group_for_university(vk, uni_name)
+        if group:
+            group_id = group['id']
+            posts_with_keywords = get_posts_with_keywords(vk, group_id)
+            universities_data.append({
+                'name': uni_name,
+                'group': {
+                    'id': group_id,
+                    'name': group['name']
+                },
+                'posts_with_keywords': posts_with_keywords
+            })
+        else:
+            universities_data.append({
+                'name': uni_name,
+                'group': None,
+                'posts_with_keywords': []
+            })
+        time.sleep(0.4)  # Задержка для соблюдения лимитов API
+
+    liked_posts = get_liked_posts(vk, user_id)
+
+    # Получение постов пользователя
+    try:
+        posts_response = vk.wall.get(owner_id=user_id, count=100, filter='owner')
+        posts = posts_response['items']
+    except Exception as e:
+        console.print(f"[red]Ошибка получения постов пользователя: {e}[/red]")
+        posts = []
+
+    user_data = {
+        'user_id': user_id,
+        'profile': profile,
+        'posts': posts,  # Посты пользователя
+        'liked_posts': liked_posts,
+        'universities': universities_data,
+        'note': "Посты, которые пользователь прокомментировал, не могут быть получены из-за ограничений VK API."
+    }
+    return user_data
+
+def download_profile_picture(url, filename):
+    """Скачивает изображение профиля по URL и сохраняет в указанный файл."""
+    try:
+        response = requests.get(url, stream=True)
+        response.raise_for_status()
+        with open(filename, 'wb') as f:
+            for chunk in response.iter_content(1024):
+                f.write(chunk)
+        return True
+    except Exception as e:
+        console.print(f"[red]Ошибка скачивания фотографии профиля: {e}[/red]")
         return False
 
-def save_json(data, filename):
-    """Сохраняет данные в JSON-файл."""
-    os.makedirs("logs", exist_ok=True)
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4, ensure_ascii=False)
-    console.print(f"[green]Данные сохранены в {filename}[/green]")
-
 def run():
-    """Основная функция модуля для извлечения данных из VK-профилей и их постов."""
+    """Основная функция модуля для извлечения данных из VK-профилей."""
     console.print(f"\n[bold cyan]:: VK OSINT SCRAPER MODULE[/bold cyan]")
     console.print("[yellow]Примечание: screen_name в VK должны быть на латинице, например, 'durov' вместо 'Дуров'.[/yellow]")
     screen_names_input = input("Введите VK screen_names через запятую: ").strip()
     screen_names = [name.strip() for name in screen_names_input.split(',')]
 
-    # Проверка на кириллические символы
     for name in screen_names:
         if contains_cyrillic(name):
-            console.print(f"[yellow]Предупреждение: '{name}' содержит кириллические символы. VK screen_names должны быть на латинице. Пожалуйста, проверьте и введите корректно.[/yellow]")
+            console.print(f"[yellow]Предупреждение: '{name}' содержит кириллические символы. VK screen_names должны быть на латинице.[/yellow]")
 
     timestamp = datetime.now().strftime("%Y%m%d%H%M")
     vk = get_vk_api()
     if vk is None:
         return
 
-    valid_object_ids = []
     for screen_name in screen_names:
         console.print(f"[cyan]→ Обработка профиля: https://vk.com/{screen_name}[/cyan]")
-        object_id, obj_type = resolve_screen_name(vk, screen_name)
-        if object_id and obj_type:
-            profile_info = get_profile_info(vk, object_id, obj_type)
-            if profile_info:
-                json_filename = f"logs/vk_summary_{object_id}_{timestamp}.json"
-                save_json(profile_info, json_filename)
-                photo_url = profile_info.get('photo_max_orig') if obj_type == 'user' else profile_info.get('photo_200')
+        user_id, obj_type = resolve_screen_name(vk, screen_name)
+        if user_id and obj_type == 'user':
+            user_data = get_user_data(vk, user_id)
+            if user_data:
+                profile = user_data['profile']
+                user_name = f"{profile['first_name']}_{profile['last_name']}" if 'first_name' in profile and 'last_name' in profile else str(user_id)
+                folder_name = sanitize_name(user_name)
+                os.makedirs(os.path.join('logs', folder_name), exist_ok=True)
+
+                # Сохранение фотографии профиля
+                photo_url = profile.get('photo_max_orig')
                 if photo_url:
-                    image_filename = f"logs/vk_profile_{object_id}_{timestamp}.jpg"
+                    image_filename = os.path.join('logs', folder_name, 'profile_picture.jpg')
                     if download_profile_picture(photo_url, image_filename):
                         console.print(f"[green]✔ Профильная картинка сохранена в {image_filename}[/green]")
                 else:
                     console.print("[yellow]Профильная картинка не найдена[/yellow]")
-                valid_object_ids.append(object_id)
-            else:
-                console.print(f"[red]Не удалось получить информацию о профиле для {screen_name}[/red]")
-        else:
-            console.print(f"[red]Не удалось разрешить screen_name: {screen_name}[/red]")
 
-    # Поиск постов выполняется последним
-    for object_id in valid_object_ids:
-        console.print(f"[cyan]→ Загрузка постов для object_id: {object_id}[/cyan]")
-        try:
-            response = vk.wall.get(owner_id=object_id, count=100, filter='owner')
-            posts = response.get('items', [])
-            posts_filename = f"logs/vk_posts_{object_id}_{timestamp}.json"
-            save_json(posts, posts_filename)
-            console.print(f"[green]✔ Посты сохранены в {posts_filename}[/green]")
-        except Exception as e:
-            console.print(f"[red]Не удалось загрузить посты для object_id {object_id}: {e}[/red]")
+                # Сохранение постов пользователя
+                for post in user_data.get('posts', []):
+                    post_id = post['id']
+                    post_filename = os.path.join('logs', f"{user_id}_{post_id}.json")
+                    with open(post_filename, 'w', encoding='utf-8') as f:
+                        json.dump(post, f, indent=4, ensure_ascii=False)
+                    console.print(f"[green]Пост {post_id} сохранён в {post_filename}[/green]")
+
+                # Сохранение данных в JSON
+                data_filename = f"logs/vk_user_data_{user_id}_{timestamp}.json"
+                with open(data_filename, "w", encoding="utf-8") as f:
+                    json.dump(user_data, f, indent=4, ensure_ascii=False)
+                console.print(f"[green]Данные сохранены в {data_filename}[/green]")
+            else:
+                console.print(f"[red]Не удалось получить данные для {screen_name}[/red]")
+        else:
+            console.print(f"[red]Не удалось разрешить screen_name: {screen_name} или это не пользователь[/red]")
         time.sleep(0.4)  # Задержка для соблюдения лимитов API
 
-    console.print(f"[bold green]✓ Все профили и посты обработаны[/bold green]")
+    console.print(f"[bold green]✓ Все профили обработаны[/bold green]")
 
 #if __name__ == "__main__":
-#    run()
+#   run()
