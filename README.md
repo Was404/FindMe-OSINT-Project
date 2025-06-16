@@ -3,7 +3,7 @@
 ### Описание
 Является дополнением проекта [OSINT-HUNTER](https://github.com/cryptdefender323/OSINT-Hunter/tree/main)
 
->[!Note] Расширения OSINT, позволяющие проводить поиск открытых источников на сайтах vk, ok, telegram.
+> [!Note] Расширения OSINT, позволяющие проводить поиск открытых источников на сайтах vk, ok, telegram.
 
 
 
