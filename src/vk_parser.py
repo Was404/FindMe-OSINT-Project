@@ -8,6 +8,7 @@ import time
 import unicodedata
 import re
 from config import TOKEN_VK, KEYWORDS
+from vk_registration_checker import get_registration_date, calculate_fake_probability
 
 console = Console()
 
@@ -48,7 +49,7 @@ def resolve_screen_name(vk, screen_name):
 
 def get_profile_info(vk, user_id):
     """Получает информацию о профиле пользователя с указанными полями."""
-    fields = "first_name,last_name,sex,bdate,city,country,home_town,photo_max_orig,domain,education,status,followers_count,occupation,relatives,relation,personal"
+    fields = "first_name,last_name,sex,bdate,city,country,home_town,photo_max_orig,domain,education,status,followers_count,occupation,relatives,relation,personal,friends"
     try:
         response = vk.users.get(user_ids=user_id, fields=fields)
         if response:
@@ -56,6 +57,24 @@ def get_profile_info(vk, user_id):
     except Exception as e:
         console.print(f"[red]Ошибка получения информации о профиле: {e}[/red]")
         return None
+
+def get_friends_cities(vk, user_id):
+    """Получает города друзей пользователя и вычисляет вероятности."""
+    try:
+        friends = vk.friends.get(user_id=user_id, fields='city')
+        cities = [friend['city']['title'] for friend in friends['items'] if 'city' in friend]
+        city_counts = {}
+        for city in cities:
+            city_counts[city] = city_counts.get(city, 0) + 1
+        total_friends_with_city = len(cities)
+        if total_friends_with_city > 0:
+            city_probabilities = {city: count / total_friends_with_city for city, count in city_counts.items()}
+            return city_probabilities
+        else:
+            return {}
+    except Exception as e:
+        console.print(f"[red]Ошибка получения городов друзей: {e}[/red]")
+        return {}
 
 def find_group_for_university(vk, university_name):
     """Находит сообщество VK, связанное с университетом."""
@@ -87,12 +106,57 @@ def get_liked_posts(vk, user_id):
         console.print(f"[red]Ошибка получения лайкнутых постов: {e}[/red]")
         return []
 
+def calculate_combined_fake_probability(profile, registration_date):
+    """
+    Вычисляет вероятность того, что профиль является фейком на основе доступных данных и даты регистрации.
+    """
+    fake_score = 0.0
+    # Проверка количества друзей
+    if 'friends' in profile and profile['friends']['count'] < 10:
+        fake_score += 0.5
+    # Проверка фото профиля
+    if 'photo_max_orig' not in profile or profile['photo_max_orig'] == 'https://vk.com/images/camera_200.png':
+        fake_score += 0.3
+    # Проверка статуса
+    if 'status' not in profile or not profile['status']:
+        fake_score += 0.2
+    # Проверка даты регистрации
+    reg_fake_score = calculate_fake_probability(registration_date)
+    fake_score += reg_fake_score
+
+    return min(fake_score, 1.0)
+
 def get_user_data(vk, user_id):
-    """Собирает всю необходимую информацию о пользователе, включая его посты."""
+    """Собирает всю информацию о пользователе, включая вероятность фейка и предсказание города."""
     profile = get_profile_info(vk, user_id)
     if not profile:
         return None
 
+    # 1. Получение даты регистрации
+    registration_date = get_registration_date(str(user_id))
+    if registration_date:
+        console.print(f"[green]Дата регистрации: {registration_date.strftime('%d.%m.%Y')}[/green]")
+    else:
+        console.print("[yellow]Не удалось определить дату регистрации[/yellow]")
+
+    # 2. Определяем вероятность фейка
+    fake_probability = calculate_combined_fake_probability(profile, registration_date)
+    console.print(f"[yellow]Вероятность фейкового профиля: {fake_probability:.2f}[/yellow]")
+
+    # 3. Проверяем город и предсказываем, если не указан
+    city = profile.get('city', {}).get('title', 'Не указан')
+    if city == 'Не указан':
+        city_probabilities = get_friends_cities(vk, user_id)
+        if city_probabilities:
+            console.print("[yellow]Город не указан. Вероятности по городам друзей:[/yellow]")
+            for city_name, prob in city_probabilities.items():
+                console.print(f"[yellow]{city_name}: {prob:.2f}[/yellow]")
+        else:
+            console.print("[yellow]Город не указан, и нет данных о городах друзей.[/yellow]")
+    else:
+        console.print(f"[green]Город: {city}[/green]")
+
+    # Обработка университетов
     universities = profile.get('education', []) if isinstance(profile.get('education'), list) else []
     universities_data = []
     for uni in universities:
@@ -130,9 +194,12 @@ def get_user_data(vk, user_id):
     user_data = {
         'user_id': user_id,
         'profile': profile,
-        'posts': posts,  # Посты пользователя
+        'posts': posts,
         'liked_posts': liked_posts,
         'universities': universities_data,
+        'fake_probability': fake_probability,
+        'city': city if city != 'Не указан' else city_probabilities,
+        'registration_date': registration_date.strftime('%d.%m.%Y') if registration_date else None,
         'note': "Посты, которые пользователь прокомментировал, не могут быть получены из-за ограничений VK API."
     }
     return user_data
@@ -207,5 +274,5 @@ def run():
 
     console.print(f"[bold green]✓ Все профили обработаны[/bold green]")
 
-#if __name__ == "__main__":
-#   run()
+if __name__ == "__main__":
+    run()
