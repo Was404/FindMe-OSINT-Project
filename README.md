@@ -35,9 +35,9 @@
 
 ### 📦Установка 
 
-1. **Скачайте** главный [проект](https://github.com/cryptdefender323/OSINT-Hunter/tree/main) используя git: `https://github.com/cryptdefender323/OSINT-Hunter.git`
+1. **Скачайте** главный [проект](https://github.com/cryptdefender323/OSINT-Hunter/tree/main) используя git: `git clone https://github.com/cryptdefender323/OSINT-Hunter.git`
 
-2. Далее в этом же каталоге, где храниться проект, **скачайте наш репозиторий** с модульями: `git clone https://github.com/Was404/FindMe-OSINT-Project.git` 
+2. Далее в этом же каталоге, где храниться проект, **скачайте наш репозиторий** с модулями: `git clone https://github.com/Was404/FindMe-OSINT-Project.git` 
 
 3. После того, как скачали, **запустите скрипт установки:**
     - *Для Windows:* `install-modules.ps1`
@@ -121,3 +121,17 @@
 ```
 
 ### ❌Troubleshooting
+
+- ***Добавил VK API в config, но не работает***
+
+    - Убедитесь что файл `config.py` находится по такому пути:  
+    ```bash
+        > where config.py
+        OSINT-HUNTER/config.py
+    ```
+    - `config.py` должен выглядеть следующим образом:
+    ```bash
+        > cat config.py
+        TOKEN_VK="<ваш токен vk api>"
+    ```
+
