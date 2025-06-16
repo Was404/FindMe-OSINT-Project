@@ -112,7 +112,7 @@ def calculate_combined_fake_probability(profile, registration_date):
     """
     fake_score = 0.0
     # Проверка количества друзей
-    if 'friends' in profile and profile['friends']['count'] < 10:
+    if 'friends' in profile and (profile['friends']['count'] < 10 or profile['friends']['count'] > 150):
         fake_score += 0.5
     # Проверка фото профиля
     if 'photo_max_orig' not in profile or profile['photo_max_orig'] == 'https://vk.com/images/camera_200.png':
