@@ -1,6 +1,6 @@
 import os
 
-import vk_parser
+import src.vk_parser as vk_parser
 
 def run_module(name, func):
     try:
