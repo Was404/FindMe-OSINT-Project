@@ -7,10 +7,30 @@ import json
 import time
 import unicodedata
 import re
-from config import TOKEN_VK, KEYWORDS
+from config import TOKEN_VK, KEYWORDS, USERSBOX_TOKEN
 from vk_registration_checker import get_registration_date, calculate_fake_probability
 
 console = Console()
+
+
+def test_UB():
+    USERSBOX_BASE_URL = "https://api.usersbox.ru/v1/"
+    method = "getMe"
+    # Формируем полный URL
+    url = f"{USERSBOX_BASE_URL}{method}"
+    # Заголовки запроса
+    headers = {
+        "Authorization": USERSBOX_TOKEN
+    }
+    # Выполняем GET-запрос
+    response = requests.get(url, headers=headers)
+    # Проверяем статус ответа
+    if response.status_code == 200:
+        # Выводим результат в формате JSON
+        print(response.json())
+    else:
+        print(f"Ошибка: {response.status_code}, {response.text}")
+
 
 def contains_cyrillic(text):
     """Проверяет, содержит ли текст кириллические символы."""
@@ -218,6 +238,9 @@ def download_profile_picture(url, filename):
         return False
 
 def run():
+
+    test_UB()#тесттттттттттттттттттттттттттттт
+
     """Основная функция модуля для извлечения данных из VK-профилей."""
     console.print(f"\n[bold cyan]:: VK OSINT SCRAPER MODULE[/bold cyan]")
     console.print("[yellow]Примечание: screen_name в VK должны быть на латинице, например, 'durov' вместо 'Дуров'.[/yellow]")
