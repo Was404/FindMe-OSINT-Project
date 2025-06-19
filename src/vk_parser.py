@@ -7,29 +7,33 @@ import json
 import time
 import unicodedata
 import re
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from config import TOKEN_VK, KEYWORDS, USERSBOX_TOKEN
 from vk_registration_checker import get_registration_date, calculate_fake_probability
 
 console = Console()
 
 
-def test_UB():
-    USERSBOX_BASE_URL = "https://api.usersbox.ru/v1/"
-    method = "getMe"
-    # Формируем полный URL
-    url = f"{USERSBOX_BASE_URL}{method}"
-    # Заголовки запроса
-    headers = {
-        "Authorization": USERSBOX_TOKEN
-    }
-    # Выполняем GET-запрос
-    response = requests.get(url, headers=headers)
-    # Проверяем статус ответа
-    if response.status_code == 200:
-        # Выводим результат в формате JSON
-        print(response.json())
-    else:
-        print(f"Ошибка: {response.status_code}, {response.text}")
+#def test_UB():
+#    USERSBOX_BASE_URL = "https://api.usersbox.ru/v1/"
+#    method = "getMe"
+#    # Формируем полный URL
+#    url = f"{USERSBOX_BASE_URL}{method}"
+#    # Заголовки запроса
+#    headers = {
+#        "Authorization": USERSBOX_TOKEN
+#    }
+#    # Выполняем GET-запрос
+#    response = requests.get(url, headers=headers)
+#    # Проверяем статус ответа
+#    if response.status_code == 200:
+#        # Выводим результат в формате JSON
+#        print(response.json())
+#    else:
+#        print(f"Ошибка: {response.status_code}, {response.text}")
 
 
 def contains_cyrillic(text):
@@ -239,7 +243,7 @@ def download_profile_picture(url, filename):
 
 def run():
 
-    test_UB()#тесттттттттттттттттттттттттттттт
+    # test_UB()#тесттттттттттттттттттттттттттттт
 
     """Основная функция модуля для извлечения данных из VK-профилей."""
     console.print(f"\n[bold cyan]:: VK OSINT SCRAPER MODULE[/bold cyan]")
