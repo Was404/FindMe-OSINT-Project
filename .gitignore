@@ -4,7 +4,7 @@ src/logs/
 __pycache__
 results-vk.txt
 vk_summary.py
-logs/
+log/
 config.py
 log/results.json
 log/screenshot.png
