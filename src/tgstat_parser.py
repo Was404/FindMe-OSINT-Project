@@ -9,7 +9,7 @@ import os
 import traceback
 
 # Создаем директорию для логов, если ее нет
-os.makedirs("log", exist_ok=True)
+os.makedirs("logs", exist_ok=True)
 
 # Настраиваем опции браузера (headless режим для работы без GUI)
 chrome_options = Options()
@@ -43,8 +43,8 @@ def get_channel_links():
         )
     except TimeoutException:
         print("Timeout waiting for elements")
-        driver.save_screenshot("log/error_screenshot.png")
-        with open("log/page_source.html", "w", encoding="utf-8") as f:
+        driver.save_screenshot("logs/error_screenshot.png")
+        with open("logs/page_source.html", "w", encoding="utf-8") as f:
             f.write(driver.page_source)
         raise
     
@@ -142,9 +142,9 @@ def run():
             time.sleep(1)  # Задержка для снижения нагрузки на сервер
         
         # Сохраняем результаты в JSON
-        with open("log/results.json", "w", encoding="utf-8") as f:
+        with open("logs/results.json", "w", encoding="utf-8") as f:
             json.dump(all_results, f, indent=4, ensure_ascii=False)
-        print(f"Результаты сохранены в log/results.json. Найдено постов: {len(all_results)}")
+        print(f"Результаты сохранены в logs/results.json. Найдено постов: {len(all_results)}")
         
     except Exception as e:
         print(f"Произошла ошибка: {e}")
