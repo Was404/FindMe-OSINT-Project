@@ -8,6 +8,8 @@ import re
 import sys
 import os
 import hashlib
+import tempfile
+import subprocess
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from config import TOKEN_OK, APPLICATION_KEY_OK, APPLICATION_SECRET_KEY_OK, KEYWORDS
@@ -277,6 +279,15 @@ def run():
         time.sleep(0.4)
 
     console.print(f"[bold green]✓ Все профили обработаны[/bold green]")
+    console.print("[cyan]Запуск OK_addon.py для проверки ассоциаций логинов для указанных screen_names...[/cyan]")
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp:
+        for name in screen_names:
+            temp.write(name + "\n")
+        temp_file = temp.name
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    addon_path = os.path.join(script_dir, "OK_addon.py")
+    subprocess.run([sys.executable, addon_path, "-f", temp_file])
+    os.remove(temp_file)
 
 if __name__ == "__main__":
     run()
