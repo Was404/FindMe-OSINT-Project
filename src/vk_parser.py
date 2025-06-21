@@ -301,5 +301,4 @@ def run():
 
     console.print(f"[bold green]✓ Все профили обработаны[/bold green]")
 
-if __name__ == "__main__":
-    run()
+run()
